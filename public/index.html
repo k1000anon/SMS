@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>.</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #000;
+            color: #fff;
+        }
+        #login, #chat {
+            width: 90%;
+            max-width: 400px;
+            padding: 20px;
+            background-color: #333;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #fff;
+        }
+        #messages {
+            list-style-type: none;
+            padding: 0;
+            height: 300px;
+            overflow-y: scroll;
+            margin: 10px 0;
+            background-color: #555;
+            border: 1px solid #777;
+            border-radius: 4px;
+        }
+        #messages li {
+            padding: 8px;
+            margin: 5px 0;
+            background-color: #666;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(255, 255, 255, 0.1);
+        }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #777;
+            border-radius: 4px;
+            background-color: #444;
+            color: #fff;
+            box-sizing: border-box;
+        }
+        #userList {
+            list-style-type: none;
+            padding: 0;
+        }
+        h1, h2, h3 {
+            text-align: center;
+        }
+        p, button, input {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="login">
+        <input type="text" id="nickname" placeholder="Digite seu apelido">
+        <button id="generateKey">Gerar Chave</button>
+        <input type="text" id="roomKey" placeholder="Digite uma chave personalizada">
+        <input type="text" id="roomKeyInput" placeholder="Digite a chave da sala">
+        <button id="joinRoom">Entrar na Sala</button>
+    </div>
+    <div id="chat" style="display: none;">
+               <p>Chave da sala: <span id="roomKeyDisplay"></span></p>
+        <ul id="messages"></ul>
+        <input type="text" id="messageInput" autocomplete="off" placeholder="Digite sua mensagem" />
+        <button id="sendButton">Enviar</button>
+<center>
+        <h3>Usuários Conectados</h3>
+        <ul id="userList"></ul>
+</center>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
+    <script>
+        const socket = io();
+        let encryptionKey;
+
+        document.getElementById('generateKey').addEventListener('click', function() {
+            let key = '';
+            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            for (let i = 0; i < 6; i++) {
+                key += characters.charAt(Math.floor(Math.random() * characters.length));
+            }
+            document.getElementById('roomKey').value = key;
+        });
+
+        document.getElementById('joinRoom').addEventListener('click', function() {
+            const nickname = document.getElementById('nickname').value;
+            const roomKey = document.getElementById('roomKey').value || document.getElementById('roomKeyInput').value;
+            if (nickname && roomKey) {
+                document.getElementById('login').style.display = 'none';
+                document.getElementById('chat').style.display = 'block';
+                document.getElementById('roomKeyDisplay').textContent = roomKey;
+                socket.emit('joinRoom', { nickname, roomKey });
+            }
+        });
+
+        document.getElementById('sendButton').addEventListener('click', function() {
+            const message = document.getElementById('messageInput').value;
+            const roomKey = document.getElementById('roomKey').value || document.getElementById('roomKeyInput').value;
+            const nickname = document.getElementById('nickname').value;
+            if (message) {
+                const encryptedMsg = CryptoJS.AES.encrypt(message, encryptionKey).toString();
+                socket.emit('chatMessage', { encryptedMsg, roomKey, nickname });
+                document.getElementById('messageInput').value = '';
+            }
+        });
+
+        socket.on('chatMessage', ({ encryptedMsg, timestamp, nickname }) => {
+            const decryptedMsg = CryptoJS.AES.decrypt(encryptedMsg, encryptionKey).toString(CryptoJS.enc.Utf8);
+            const li = document.createElement('li');
+            li.textContent = `[${timestamp}] ${nickname}: ${decryptedMsg}`;
+            document.getElementById('messages').appendChild(li);
+        });
+
+        socket.on('message', ({ nickname, text }) => {
+            const li = document.createElement('li');
+            li.textContent = text;
+            document.getElementById('messages').appendChild(li);
+        });
+
+        socket.on('userList', (users) => {
+            const userList = document.getElementById('userList');
+            userList.innerHTML = '';
+            users.forEach(user => {
+                const li = document.createElement('li');
+                li.textContent = user;
+                userList.appendChild(li);
+            });
+        });
+
+        socket.on('roomNumber', (number) => {
+            document.getElementById('roomNumber').textContent = number;
+        });
+
+        socket.on('encryptionKey', (key) => {
+            encryptionKey = key;
+        });
+    </script>
+</body>
+</html>
